@@ -146,6 +146,8 @@ end
 return {
 	writeSocket = writeSocket,
 	readSocket = readSocket,
+	readSocketLen = readBuffLen,
+	readSocketStr = readBuffStr,
 	connectSocket = connectSocket,
 	disconnectSocket = disconnectSocket,
 	assertCoroutine = assertCoroutine
