@@ -1,3 +1,4 @@
+local ffi = require("ffi")
 local strext = require("string-extensions")
 
 local ENABLE_DEBUGGING = false
@@ -25,6 +26,49 @@ local function readBuffLen(buff, n)
 	buff.strlen = #buff[1]
 
 	return result
+end
+
+local function readBuffLenMemCpy(buff, n, dest)
+	while buff.strlen < n do
+		coroutine.yield()
+	end
+
+	local lastI, remainder, len = 1, n, #buff
+
+	for i = 1, #buff do
+		local v = buff[i]
+
+		if v ~= "" then
+			if remainder < #v then
+				if remainder > 0 then
+					ffi.copy(dest + n - remainder, v, remainder)
+				end
+
+				lastI = i
+				break
+			else
+				ffi.copy(dest + n - remainder, v, #v)
+			end
+
+			remainder = remainder - #v
+		end
+
+		buff[i] = nil
+	end
+
+	if buff[lastI] then
+		buff[lastI] = string.sub(buff[lastI], remainder + 1)
+	end
+
+	if lastI ~= len or buff[lastI] then
+		table.move(buff, lastI, len, 1)
+
+		for i = len - lastI + 2, len do
+			buff[i] = nil
+		end
+	end
+
+	buff.strlen = buff.strlen - n
 end
 
 local function findNullStr(buff, last)
@@ -147,6 +191,7 @@ return {
 	writeSocket = writeSocket,
 	readSocket = readSocket,
 	readSocketLen = readBuffLen,
+	readSocketLenMemCpy = readBuffLenMemCpy,
 	readSocketStr = readBuffStr,
 	connectSocket = connectSocket,
 	disconnectSocket = disconnectSocket,
