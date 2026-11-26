@@ -1,6 +1,9 @@
 local ffi = require("ffi")
 local strext = require("string-extensions")
 
+pcall(require, "table.new") -- LuaJIT support
+pcall(require, "table.clear") -- LuaJIT support
+
 local ENABLE_DEBUGGING = false
 local CONN_TERM = "Connection terminated due to: "
 local MAX_ERRORS = 64
@@ -73,7 +76,7 @@ end
 
 local function findNullStr(buff, last)
 	for i = last + 1, #buff do
-		local found = string.find(buff[i], "%z", 1, true)
+		local found = string.find(buff[i], "\0", 1, true)
 
 		if found then
 			for i2 = 1, i - 1 do
