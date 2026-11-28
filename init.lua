@@ -1,3 +1,14 @@
+--[[lit-meta
+	name = "ccuser44/sbuff"
+	version = "1.0.3"
+	description = "Socket Buffer. Buffered schema like reader for sockets. Supports the Lua string.pack format"
+	tags = { "buffer", "binary", "protocol", "socket" }
+	license = "MIT"
+	author = { name = "ccuser44", email = "68124053+ccuser44@users.noreply.github.com" }
+	homepage = "https://github.com/ccuser44/sbuff"
+	dependencies = { "Richy-Z/string-extensions" }
+	files = { "**.lua", "!**spec.lua", "!test*", }
+]]
 local ffi = require("ffi")
 local strext = require("string-extensions")
 
@@ -102,12 +113,12 @@ local function readBuffStr(buff)
 end
 
 local function writeSocket(self, schema, ...)
-	assert(not self.destroyed, "Cannot write to a closed socket!") -- Prevent a really granly LibUV bug where writing to a closed socket causes a hard to debug program crash
+	assert(not self.destroyed and not self._destroyed, "Cannot write to a closed socket!") -- Prevent a really granly LibUV bug where writing to a closed socket causes a hard to debug program crash
 	self:write(string.pack(schema, ...))
 end
 
 local function readSocket(self, schema, buff)
-	assert(not self.destroyed, "Cannot write to a closed socket!") -- Prevent a really granly LibUV bug where writing to a closed socket causes a hard to debug program crash
+	assert(not self.destroyed and not self._destroyed, "Cannot write to a closed socket!") -- Prevent a really granly LibUV bug where writing to a closed socket causes a hard to debug program crash
 	local schemas = string.split(schema, "s")
 	local data = table.new(#schemas + #schema - #string.gsub(schema, "z", ""), 0)
 	local endian = ""
@@ -126,6 +137,21 @@ local function readSocket(self, schema, buff)
 	end
 
 	return string.unpack(schema, table.concat(data))
+end
+
+local function disconnectSocket(socket)
+	for _, v in ipairs(REGISTERED_HANDLERS) do
+		pcall(socket.removeListener, socket, v)
+	end
+
+	return socket
+end
+
+local function destroySocket(socket)
+	if not socket.destroyed and not socket._destroyed then
+		disconnectSocket(socket)
+		socket:destroy()
+	end
 end
 
 local function connectSocket(socket, buff) -- TODO: Add an optional timeout
@@ -156,7 +182,7 @@ local function connectSocket(socket, buff) -- TODO: Add an optional timeout
 		end
 
 		coroutine.resume(co, false, "Connection ended")
-		socket:destroy()
+		destroySocket(socket)
 	end)
 
 	socket:on("error", function(err)
@@ -168,7 +194,7 @@ local function connectSocket(socket, buff) -- TODO: Add an optional timeout
 
 		if errors > MAX_ERRORS then -- Hande errors gracefully but if it's stuck then close
 			coroutine.resume(co, false, err)
-			socket:destroy()
+			destroySocket(socket)
 		end
 	end)
 
@@ -178,16 +204,8 @@ local function connectSocket(socket, buff) -- TODO: Add an optional timeout
 		end
 
 		coroutine.resume(co, false, "Connection closed")
-		socket:destroy()
+		destroySocket(socket)
 	end)
-end
-
-local function disconnectSocket(socket)
-	for _, v in ipairs(REGISTERED_HANDLERS) do
-		pcall(socket.removeListener, socket, v)
-	end
-
-	return socket
 end
 
 return {
